@@ -1,0 +1,13 @@
+# Default experiment settings. Change values here, not in the code.
+seed: 42
+
+model:
+  # Pretrained on Cityscapes, from the Hugging Face Hub
+  name: nvidia/segformer-b0-finetuned-cityscapes-1024-1024
+
+data:
+  cityscapes_root: data/cityscapes
+  acdc_root: data/acdc
+  conditions: [fog, night, rain, snow]
+
+output_dir: reports

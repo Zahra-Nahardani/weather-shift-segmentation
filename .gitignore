@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data and model weights (never commit datasets: research-only licences)
+data/*
+!data/README.md
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Large or generated outputs
+outputs/
+runs/
+wandb/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
