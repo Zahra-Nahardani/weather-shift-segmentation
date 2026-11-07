@@ -6,8 +6,6 @@ from weather_shift.data import load_label
 from weather_shift.model import predict
 
 
-
-
 def evaluate(pairs, processor, model, num_classes=19):
     """Return the IoU of each class over all image/label pairs."""
 

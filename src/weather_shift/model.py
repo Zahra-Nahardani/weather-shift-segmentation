@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 
+
 def predict(image, processor, model):
     """Return the predicted class map and the confidence map, both at image size."""
     inputs = processor(images=image, return_tensors="pt")
