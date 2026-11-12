@@ -12,6 +12,8 @@ Short notes on what I tried, what I observed and what confused me.
 
 ## Week 2
 
+Notebook: `notebooks/02_clear_vs_adverse.ipynb`
+
 ### Setup
 - Model: SegFormer-B0 trained on Cityscapes, no changes.
 - Data: Cityscapes val (500 images, clear) and ACDC val (fog 100, night 106, rain 100, snow 100).
@@ -49,3 +51,56 @@ Figures: `reports/figures/week2_night_worst_*.png`.
 ### Main takeaway
 The model's own confidence does not warn us about its worst mistakes at night. This is the starting point for choosing the Week 3 question.
 
+## Week 3: does the model's confidence warn about its mistakes?
+
+Notebook: `notebooks/03_confidence_check.ipynb`
+
+### Tools
+- **Reliability check / ECE:** group pixels by confidence and compare the average confidence with the real accuracy. ECE is the average gap (0 = perfectly honest).
+- **AUROC (error detection):** the chance that a random wrong pixel has lower confidence than a random correct pixel (1.0 = perfect, 0.5 = coin flip). 20,000 random pixels per image, seed 0.
+
+### Result 1: one night image
+- When the model is ~98% confident, it is right only about 71% of the time. At 75% confidence it is right only 22% of the time.
+- Accuracy is still highest in the top boxes and lowest in the bottom boxes, so confidence still sorts pixels from worse to better, but its numbers are far too high.
+- One image is not enough to draw conclusions, so the next step looks at all images.
+
+### Result 2: reliability diagram, clear vs night (all images)
+Figure: `reports/figures/week3_reliability_clear_night.png`
+- Clear (ECE 0.01): the curve almost sits on the dashed line. In normal weather the confidence is honest: when the model says 80%, it is right about 80% of the time.
+- Night (ECE 0.28): the curve drops far below the line. The same model, with the same confidence numbers, becomes overconfident at night.
+- **The confidence is trustworthy in the conditions the model was trained on, and stops being trustworthy under weather shift.**
+
+### Result 3: confidence quality per condition
+Table: `reports/week3_confidence_quality.csv`
+
+| Condition | ECE | AUROC |
+|---|---|---|
+| Clear | 0.014 | 0.926 |
+| Fog | 0.025 | 0.903 |
+| Rain | 0.052 | 0.883 |
+| Snow | 0.080 | 0.826 |
+| Night | 0.277 | 0.742 |
+
+- Clear and fog: the confidence works well. The numbers are honest, and low confidence points at most mistakes.
+- Rain and snow: it gets worse.
+- Night: it breaks. The warning still helps a little (better than a 0.5 coin flip), but it misses many mistakes. This fits the Week 2 gallery: the night sky is wrong and confident.
+- **The worse the weather shift, the worse the model is, and the worse its confidence warns about it.**
+
+### Result 4: a first try at a better warning (flip test, night only)
+| Method | ECE | AUROC |
+|---|---|---|
+| Plain confidence | 0.277 | 0.742 |
+| Flip (photo + mirror, averaged) | 0.256 | 0.739 |
+
+- The flip test barely changed anything. ECE improved a little and AUROC did not improve.
+- The model makes the same mistake on the mirrored photo, so asking twice the same way does not help.
+
+### Summary so far
+1. The model gets much worse under weather shift (mIoU: clear 0.58, night 0.22).
+2. Its confidence stops being honest (ECE: clear 0.014, night 0.277) and stops pointing at its mistakes (AUROC: clear 0.93, night 0.74).
+3. Giving the model a second look with a flipped photo does not help, so the worst mistakes are **confident and consistent**.
+
+### Focused question (next step)
+When the weather gets bad, can the model tell us when it’s wrong? Which mistakes does the model make without lowering its confidence? Do plain confidence, the flip test or MC dropout catch those mistakes?
+
+**Hypothesis:** methods that ask the same model again will help a little in rain and snow, but will miss most confident night mistakes such as sky -> building.

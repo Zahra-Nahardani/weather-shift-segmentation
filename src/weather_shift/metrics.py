@@ -1,6 +1,10 @@
+from xml.parsers.expat import model
+
 import numpy as np
 from PIL import Image
+from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
+
 
 from weather_shift.data import load_label
 from weather_shift.model import predict
@@ -53,3 +57,42 @@ def image_miou(label, pred, num_classes=19):
         if union > 0:
             ious.append((true_c & pred_c).sum() / union)
     return float(np.mean(ious))
+
+
+def reliability(pairs, processor, model, n_bins=10, predict_fn=predict):
+    """Per confidence box: pixel count, average confidence, accuracy."""
+    bins = np.linspace(0, 1, n_bins + 1)
+    count = np.zeros(n_bins)
+    conf_sum = np.zeros(n_bins)
+    correct_sum = np.zeros(n_bins)
+    for img_path, label_path in tqdm(pairs):
+        image = Image.open(img_path).convert("RGB")
+        label = load_label(label_path)
+        pred, conf = predict_fn(image, processor, model)
+        valid = label != 255
+        c = conf[valid]
+        correct = pred[valid] == label[valid]
+        for k, (lo, hi) in enumerate(zip(bins[:-1], bins[1:])):
+            in_bin = (c > lo) & (c <= hi)
+            count[k] += in_bin.sum()
+            conf_sum[k] += c[in_bin].sum()
+            correct_sum[k] += correct[in_bin].sum()
+    keep = count > 0
+    return count[keep], conf_sum[keep] / count[keep], correct_sum[keep] / count[keep]
+
+
+def error_detection(pairs, processor, model, pixels_per_image=20000, seed=0, predict_fn=predict):
+    """AUROC of using (1 - confidence) to find wrong pixels."""
+    rng = np.random.default_rng(seed)
+    uncertainty, wrong = [], []
+    for img_path, label_path in tqdm(pairs):
+        image = Image.open(img_path).convert("RGB")
+        label = load_label(label_path)
+        pred, conf = predict_fn(image, processor, model)
+        valid = label != 255
+        c = conf[valid]
+        w = pred[valid] != label[valid]
+        idx = rng.choice(len(c), size=min(pixels_per_image, len(c)), replace=False)
+        uncertainty.append(1 - c[idx])
+        wrong.append(w[idx])
+    return roc_auc_score(np.concatenate(wrong), np.concatenate(uncertainty))
