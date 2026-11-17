@@ -34,3 +34,28 @@ def predict_flip(image, processor, model):
     probs_m = predict_probs(mirrored, processor, model).flip(dims=[2])
     conf, pred = ((probs + probs_m) / 2).max(dim=0)
     return pred.numpy(), conf.numpy()
+
+
+def enable_dropout(model):
+    """Switch on only the dropout layers, keep everything else in normal mode."""
+    for module in model.modules():
+        kind = type(module).__name__
+        if "Dropout" in kind or "DropPath" in kind:
+            module.train()
+
+
+def predict_mc(image, processor, model, n_samples=8):
+    """Run the model n_samples times with dropout on and average the answers."""
+    inputs = processor(images=image, return_tensors="pt")
+    model.eval()
+    enable_dropout(model)
+    with torch.no_grad():
+        runs = [model(**inputs).logits.softmax(dim=1) for _ in range(n_samples)]
+    model.eval()
+    probs = torch.stack(runs).mean(dim=0)
+    probs = F.interpolate(
+        probs, size=(image.height, image.width), mode="bilinear", align_corners=False
+    )
+    conf, pred = probs[0].max(dim=0)
+    return pred.numpy(), conf.numpy()
+    

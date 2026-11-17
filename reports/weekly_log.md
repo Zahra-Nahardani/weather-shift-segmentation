@@ -104,3 +104,78 @@ Table: `reports/week3_confidence_quality.csv`
 When the weather gets bad, can the model tell us when it’s wrong? Which mistakes does the model make without lowering its confidence? Do plain confidence, the flip test or MC dropout catch those mistakes?
 
 **Hypothesis:** methods that ask the same model again will help a little in rain and snow, but will miss most confident night mistakes such as sky -> building.
+
+## Week 4: main experiment, can the model tell us when it's wrong?
+
+Notebook: `notebooks/04_main_experiment.ipynb`
+
+### Question
+When the weather gets bad, can the model tell us when it's wrong?
+1. Which mistakes come without a lowered confidence?
+2. Do plain confidence, the flip test or MC dropout catch them?
+
+### Methods compared
+- **Plain:** the model's normal softmax confidence (one run).
+- **Flip (test-time augmentation):** run on the photo and its mirror image, average the two answers.
+- **MC dropout:** keep the dropout layers switched on, run 8 times, average the answers. Only the Dropout and DropPath layers are switched on; BatchNorm stays in normal mode. SegFormer-B0 has little dropout (one Dropout layer with p = 0.1 and 7 DropPath layers with p = 0.014-0.1), so the runs differ only slightly.
+
+### Measures
+- **ECE:** gap between confidence and accuracy (lower = more honest).
+- **AUROC:** does low confidence point to the wrong pixels? (higher = better, 0.5 = coin flip). 20,000 random pixels per image, seed 0.
+- **Confident mistakes:** share of wrong pixels with confidence > 0.9 (lower = better).
+- **Confident correct:** share of correct pixels with confidence > 0.9 (to check whether a method only lowers confidence everywhere).
+- "Confident" means confidence > 0.9 (parameter `high` in `evaluate_uncertainty`).
+- Sanity check: plain on night gives ECE 0.277 and AUROC 0.742, the same as Week 3.
+
+### Result 1: all methods, all conditions
+File: `reports/week4_results.csv`
+
+| Condition | Method | ECE | AUROC | Confident mistakes | Confident correct |
+|---|---|---|---|---|---|
+| Clear | plain | 0.014 | 0.926 | 0.175 | 0.874 |
+| Clear | flip | 0.009 | 0.929 | 0.153 | 0.867 |
+| Clear | MC | 0.004 | 0.928 | 0.110 | 0.834 |
+| Fog | plain | 0.025 | 0.903 | 0.273 | 0.884 |
+| Fog | flip | 0.020 | 0.907 | 0.242 | 0.875 |
+| Fog | MC | 0.008 | 0.905 | 0.174 | 0.830 |
+| Rain | plain | 0.052 | 0.883 | 0.250 | 0.846 |
+| Rain | flip | 0.041 | 0.889 | 0.206 | 0.830 |
+| Rain | MC | 0.021 | 0.898 | 0.120 | 0.776 |
+| Snow | plain | 0.080 | 0.826 | 0.344 | 0.833 |
+| Snow | flip | 0.067 | 0.833 | 0.302 | 0.813 |
+| Snow | MC | 0.045 | 0.832 | 0.219 | 0.747 |
+| Night | plain | 0.277 | 0.742 | 0.473 | 0.785 |
+| Night | flip | 0.256 | 0.739 | 0.425 | 0.747 |
+| Night | MC | 0.216 | 0.733 | 0.273 | 0.618 |
+
+- **MC dropout makes the confidence more honest.** It has the lowest ECE in every condition (night 0.277 to 0.216). Flip helps a little.
+- **No method gets better at finding the mistakes.** AUROC stays within about 0.015 across methods. At night, flip and MC are slightly worse than plain.
+- **Fewer confident mistakes, mostly because everything gets less confident.** At night, MC cuts confident mistakes from 47% to 27%, but confident correct pixels also fall from 79% to 62%. MC lowers confidence across the board instead of picking out the mistakes.
+- **A hard core stays hidden.** Even with MC dropout, about 1 in 4 night mistakes is still made with more than 90% confidence.
+
+### Result 2: which mistakes stay confident? (night)
+File: `reports/week4_confident_mistakes_per_class.csv` (share of each class's mistakes made with confidence > 0.9)
+
+| Class | Plain | Flip | MC |
+|---|---|---|---|
+| Sky | 0.58 | 0.54 | 0.37 |
+| Sidewalk | 0.58 | 0.54 | 0.32 |
+| Fence | 0.43 | 0.37 | 0.23 |
+| Vegetation | 0.34 | 0.28 | 0.17 |
+| Wall | 0.29 | 0.22 | 0.11 |
+| Pole | 0.27 | 0.21 | 0.18 |
+| Traffic sign | 0.26 | 0.24 | 0.15 |
+| Building | 0.24 | 0.16 | 0.11 |
+
+- The top two are the same two confusions found in Week 2: **sky to building** and **sidewalk to road**.
+- These are **large, smooth areas** where the model swaps one plausible class for its neighbour. The model doesn't hesitate at an edge; it confidently misreads the whole region. Asking again (flip, dropout) gives the same wrong answer.
+- **Thin objects** (pole, traffic sign) have fewer confident mistakes: their errors sit mostly at edges, where the confidence already drops.
+- **Sidewalk to road is a safety problem:** pedestrians walk on sidewalks, and a confident "road" gives no warning.
+
+### Answers
+1. **Which mistakes come without a lowered confidence?** Whole-region swaps between similar-looking classes, mainly sky to building and sidewalk to road at night.
+2. **Do the methods catch them?** Only partly. MC dropout lowers their confidence somewhat (and makes the confidence more honest overall), but about a third of these mistakes stay above 90% confidence, and no method gets better at pointing to where the mistakes are.
+
+### Open points for Week 5
+- Check that the conclusions don't depend on the 0.9 threshold (repeat with 0.8 and 0.95).
+- Turn the results into 3-4 clear figures.

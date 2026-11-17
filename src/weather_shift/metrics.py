@@ -96,3 +96,54 @@ def error_detection(pairs, processor, model, pixels_per_image=20000, seed=0, pre
         uncertainty.append(1 - c[idx])
         wrong.append(w[idx])
     return roc_auc_score(np.concatenate(wrong), np.concatenate(uncertainty))
+
+
+def evaluate_uncertainty(pairs, processor, model, predict_fn=predict, n_bins=10,
+                         pixels_per_image=20000, seed=0, num_classes=19, high=0.9):
+    """One pass over the data: ECE, AUROC and confident-mistake numbers."""
+    rng = np.random.default_rng(seed)
+    n_correct = 0
+    n_confident_correct = 0
+    bins = np.linspace(0, 1, n_bins + 1)
+    count = np.zeros(n_bins)
+    conf_sum = np.zeros(n_bins)
+    correct_sum = np.zeros(n_bins)
+    wrong_per_class = np.zeros(num_classes)
+    confident_wrong_per_class = np.zeros(num_classes)
+    uncertainty, wrong_sample = [], []
+    for img_path, label_path in tqdm(pairs):
+        image = Image.open(img_path).convert("RGB")
+        label = load_label(label_path)
+        pred, conf = predict_fn(image, processor, model)
+        valid = label != 255
+        c = conf[valid]
+        t = label[valid]
+        correct = pred[valid] == t
+        wrong = ~correct
+        n_correct += correct.sum()
+        n_confident_correct += (correct & (c > high)).sum()
+        # 1. reliability boxes (for ECE)
+        for k, (lo, hi) in enumerate(zip(bins[:-1], bins[1:], strict=True)):
+            in_bin = (c > lo) & (c <= hi)
+            count[k] += in_bin.sum()
+            conf_sum[k] += c[in_bin].sum()
+            correct_sum[k] += correct[in_bin].sum()
+        # 2. mistakes and confident mistakes, per true class
+        wrong_per_class += np.bincount(t[wrong], minlength=num_classes)
+        confident_wrong_per_class += np.bincount(t[wrong & (c > high)], minlength=num_classes)
+        # 3. random sample of pixels (for AUROC)
+        idx = rng.choice(len(c), size=min(pixels_per_image, len(c)), replace=False)
+        uncertainty.append(1 - c[idx])
+        wrong_sample.append(wrong[idx])
+    keep = count > 0
+    avg_conf = conf_sum[keep] / count[keep]
+    acc = correct_sum[keep] / count[keep]
+    ece = np.sum(count[keep] / count.sum() * np.abs(acc - avg_conf))
+    auroc = roc_auc_score(np.concatenate(wrong_sample), np.concatenate(uncertainty))
+    summary = {
+        "ECE": ece,
+        "AUROC": auroc,
+        "confident_mistakes": confident_wrong_per_class.sum() / wrong_per_class.sum(),
+        "confident_correct": n_confident_correct / n_correct,
+    }
+    return summary, wrong_per_class, confident_wrong_per_class
