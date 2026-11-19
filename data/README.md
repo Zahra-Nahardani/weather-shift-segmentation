@@ -12,4 +12,7 @@ data/
     gt/{fog,night,rain,snow}/...
 ```
 
-Folder names follow the official packages. Adjust `configs/default.yaml` if yours differ.
+Only the `val` splits are used. Folder names follow the official packages: for Cityscapes,
+`leftImg8bit_trainvaltest.zip` and `gtFine_trainvaltest.zip`; for ACDC, the anonymized RGB
+images and the semantic segmentation labels. If you store the data somewhere else, change the
+data folder path at the top of each notebook.
