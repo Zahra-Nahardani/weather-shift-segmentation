@@ -1,10 +1,7 @@
-from xml.parsers.expat import model
-
 import numpy as np
 from PIL import Image
 from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
-
 
 from weather_shift.data import load_label
 from weather_shift.model import predict
@@ -72,7 +69,7 @@ def reliability(pairs, processor, model, n_bins=10, predict_fn=predict):
         valid = label != 255
         c = conf[valid]
         correct = pred[valid] == label[valid]
-        for k, (lo, hi) in enumerate(zip(bins[:-1], bins[1:])):
+        for k, (lo, hi) in enumerate(zip(bins[:-1], bins[1:], strict=True)):
             in_bin = (c > lo) & (c <= hi)
             count[k] += in_bin.sum()
             conf_sum[k] += c[in_bin].sum()
