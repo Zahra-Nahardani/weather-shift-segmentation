@@ -179,3 +179,29 @@ File: `reports/week4_confident_mistakes_per_class.csv` (share of each class's mi
 ### Open points for Week 5
 - Check that the conclusions don't depend on the 0.9 threshold (repeat with 0.8 and 0.95).
 - Turn the results into 3-4 clear figures.
+
+## Week 5: robustness check and figures
+
+Notebook: `notebooks/05_analysis_figures.ipynb`
+
+### Robustness check: does the 0.9 threshold matter? (night)
+File: `reports/week5_threshold_check.csv`
+
+| Threshold | Confident mistakes (plain -> MC) | Confident correct (plain -> MC) |
+|---|---|---|
+| 0.80 | 0.60 -> 0.44 | 0.86 -> 0.76 |
+| 0.90 | 0.47 -> 0.28 | 0.79 -> 0.63 |
+| 0.95 | 0.37 -> 0.19 | 0.72 -> 0.51 |
+
+- At every threshold, MC dropout lowers confident mistakes **and** confident correct pixels, and a hard core of confident mistakes remains (about 1 in 5 even at 0.95).
+- **The conclusions hold for confidence thresholds from 0.8 to 0.95.**
+- MC dropout is random, so its results vary by about +-0.01 between runs. From now on the seed is fixed with `torch.manual_seed(0)`.
+
+### Figures
+1. `fig1_miou_per_condition.png`: segmentation quality drops under adverse weather (clear 0.58, night 0.22). "Clear" comes from Cityscapes, the others from ACDC.
+2. `fig2_reliability.png`: confidence is honest in clear weather (ECE 0.01) but overconfident at night (0.28). MC dropout moves the night curve towards honest (0.21) but stays far from it.
+3. `fig3_methods_ece_auroc.png`: MC dropout lowers ECE in every condition, but AUROC is almost the same for all methods. Only the weather changes it.
+4. `fig4_hard_core_example.png`: a night photo where the sky (called building) and the sidewalk (called road) are wrong with more than 90% confidence, even with MC dropout.
+
+### Findings
+A segmentation model trained on clear-weather city scenes (SegFormer-B0, Cityscapes) loses much of its accuracy under adverse weather, dropping from 0.58 mIoU in clear weather to 0.22 at night. Its confidence also stops being trustworthy: it is well calibrated in clear weather (ECE 0.01) but strongly overconfident at night (ECE 0.28), and low confidence becomes a weaker pointer to mistakes (AUROC 0.93 to 0.74). Two common uncertainty methods, test-time flipping and MC dropout, make the confidence more honest (MC dropout lowers night ECE to 0.22), but neither gets better at finding where the model is wrong: AUROC stays almost unchanged in every condition. MC dropout mainly lowers confidence everywhere, on correct and wrong pixels alike, instead of singling out the mistakes. A hard core of errors stays hidden: at night, about a quarter of all mistakes are still made with more than 90% confidence, mostly whole regions swapped for a similar-looking class, such as sky called building and sidewalk called road. Because these mistakes are consistent, asking the same model again does not reveal them, which suggests that an independent source of information is needed to catch them.
