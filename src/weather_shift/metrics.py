@@ -1,3 +1,5 @@
+"""Accuracy (IoU) and uncertainty (ECE, AUROC, confident mistakes) metrics."""
+
 import numpy as np
 from PIL import Image
 from sklearn.metrics import roc_auc_score

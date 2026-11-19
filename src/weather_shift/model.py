@@ -1,3 +1,5 @@
+"""Run SegFormer: plain, flip TTA and MC dropout predictions."""
+
 import torch
 import torch.nn.functional as F
 from PIL import Image

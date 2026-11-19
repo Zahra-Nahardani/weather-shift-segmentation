@@ -1,3 +1,5 @@
+"""Load Cityscapes and ACDC images and labels."""
+
 from pathlib import Path
 
 import numpy as np
@@ -5,9 +7,7 @@ from PIL import Image
 
 
 def get_pairs(data_root, dataset, condition=None):
-
-    """Return a sorted list of (image_path, label_path) pairs."""
-    
+    """Return a sorted list of (image_path, label_path) pairs.""" 
     data_root = Path(data_root)
     pairs = []
     if dataset == "cityscapes":
